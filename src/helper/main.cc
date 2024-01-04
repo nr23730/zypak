@@ -6,6 +6,8 @@
 // zypak-helper is called by zypak-sandbox and is responsible for setting up the file descriptors
 // and launching the target process.
 
+#include <fcntl.h>
+
 #include <filesystem>
 #include <set>
 #include <vector>
@@ -69,7 +71,7 @@ void DetermineZygoteStrategy() {
 }
 
 bool SanityCheckWidevinePath(cstring_view widevine_path) {
-  if (!EndsWith(widevine_path, "WidevineCdm") && !EndsWith(widevine_path, "WidevineCdm/")) {
+  if (!widevine_path.ends_with("WidevineCdm") && !widevine_path.ends_with("WidevineCdm/")) {
     Log() << "Rejecting potentially incorrect Widevine CDM path: " << widevine_path;
     return false;
   }
@@ -116,6 +118,10 @@ bool ApplyFdMapFromArgs(ArgsView::iterator* it, ArgsView::iterator last) {
   return true;
 }
 
+std::string GetZypakLib(std::string_view libdir, std::string_view name) {
+  return (fs::path(libdir) / ("libzypak-preload-"s + std::string(name) + ".so")).string();
+}
+
 std::string GetPreload(std::string_view mode, std::string_view libdir) {
   std::vector<std::string> preload_names;
 
@@ -141,12 +147,73 @@ std::string GetPreload(std::string_view mode, std::string_view libdir) {
     preload_libs.push_back(std::string(*preload));
   }
 
-  for (const std::string& name : preload_names) {
-    fs::path path = fs::path(libdir) / ("libzypak-preload-"s + name + ".so");
-    preload_libs.push_back(path.string());
+  preload_libs.push_back(GetZypakLib(libdir, mode));
+  if (Env::Test(Env::kZypakZygoteStrategySpawn)) {
+    preload_libs.push_back(GetZypakLib(libdir, std::string(mode) + "-spawn-strategy"));
+    if (mode == "host") {
+      if (auto crlib = Env::Get(Env::kZypakSettingCefLibraryPath)) {
+        preload_libs.emplace_back(*crlib);
+      }
+
+      preload_libs.push_back(GetZypakLib(libdir, "host-spawn-strategy-close"));
+    }
+  } else {
+    preload_libs.push_back(GetZypakLib(libdir, std::string(mode) + "-mimic-strategy"));
   }
 
   return Join(preload_libs.begin(), preload_libs.end(), ":");
+}
+
+bool LooksLikeElfFile(cstring_view target) {
+  unique_fd target_fd;
+
+  if (target.find("/") != cstring_view::npos) {
+    target_fd = open(target.c_str(), O_RDONLY);
+    if (target_fd.invalid()) {
+      return false;
+    }
+  } else {
+    cstring_view path = Env::Require("PATH");
+    std::vector<std::string_view> path_entries;
+    SplitInto(path, ':', std::back_inserter(path_entries));
+
+    for (auto entry : path_entries) {
+      fs::path target_path = fs::path(entry) / target.c_str();
+      Debug() << "Check " << target_path;
+      if (access(target_path.c_str(), X_OK) == -1) {
+        continue;
+      }
+
+      target_fd = open(target_path.c_str(), O_RDONLY);
+      if (!target_fd.invalid()) {
+        break;
+      }
+    }
+
+    if (target_fd.invalid()) {
+      Log() << "Failed to find full path for target executable '" << target << "'";
+      return false;
+    }
+  }
+
+  static constexpr std::array<std::byte, 4> kElfMagic = {std::byte(0x7F), std::byte('E'),
+                                                         std::byte('L'), std::byte('F')};
+  std::array<std::byte, kElfMagic.size()> magic;
+
+  if (HANDLE_EINTR(read(target_fd.get(), magic.data(), magic.size())) == -1) {
+    Errno() << "read() failed";
+    return false;
+  }
+
+  if (magic != kElfMagic) {
+    Log() << target << " is not an ELF file";
+    if (magic[0] == std::byte('#') && magic[1] == std::byte('!')) {
+      Log() << "(it appears to be a shell script?)";
+    }
+    return false;
+  }
+
+  return true;
 }
 
 int main(int argc, char** argv) {
@@ -202,6 +269,11 @@ int main(int argc, char** argv) {
   if (it == args.end()) {
     Log() << "Expected a command";
     return 1;
+  }
+
+  if (!LooksLikeElfFile(*it)) {
+    Log() << "WARNING: supplied target " << *it << " does not look like a valid Chromium binary!";
+    Log() << "Zypak needs to be called directly on the executable *binary*, not any wrappers.";
   }
 
   auto bindir = Env::Require(Env::kZypakBin);

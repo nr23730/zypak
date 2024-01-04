@@ -10,7 +10,7 @@ CXX := g++
 CXXFLAGS := \
 		-DZYPAK_RELEASE="\"$(shell git describe --tags --dirty)\"" \
 		-fstack-protector-all -fstack-clash-protection -Wall -Werror \
-		-std=c++17 -g -pthread \
+		-std=c++20 -g -pthread \
 		-Inickle -Isrc \
 		$(LIBSYSTEMD_CFLAGS) $(DBUS_CFLAGS)
 
@@ -74,18 +74,33 @@ preload_host_SOURCES := \
 
 $(call build_shlib,preload_host)
 
+preload_host_mimic_strategy_SOURCE_DIR := preload/host/mimic_strategy
+preload_host_mimic_strategy_NAME := zypak-preload-host-mimic-strategy
+preload_host_mimic_strategy_DEPS := preload base
+preload_host_mimic_strategy_SOURCES := \
+	initialize.cc \
+
+$(call build_shlib,preload_host_mimic_strategy)
+
 preload_host_spawn_strategy_SOURCE_DIR := preload/host/spawn_strategy
 preload_host_spawn_strategy_NAME := zypak-preload-host-spawn-strategy
 preload_host_spawn_strategy_DEPS := preload dbus base
 preload_host_spawn_strategy_SOURCES := \
 	bus_safe_fork.cc \
 	initialize.cc \
-	no_close_host_fd.cc \
 	process_override.cc \
 	spawn_launcher_delegate.cc \
 	supervisor.cc \
 
 $(call build_shlib,preload_host_spawn_strategy)
+
+preload_host_spawn_strategy_close_SOURCE_DIR := preload/host/spawn_strategy/close
+preload_host_spawn_strategy_close_NAME := zypak-preload-host-spawn-strategy-close
+preload_host_spawn_strategy_close_DEPS := preload base
+preload_host_spawn_strategy_close_SOURCES := \
+	no_close_host_fd.cc \
+
+$(call build_shlib,preload_host_spawn_strategy_close)
 
 preload_child_SOURCE_DIR := preload/child
 preload_child_NAME := zypak-preload-child
@@ -148,7 +163,9 @@ install : all
 	install -Dm 755 -t $(FLATPAK_DEST)/bin build/zypak-helper
 	install -Dm 755 -t $(FLATPAK_DEST)/bin build/zypak-sandbox
 	install -Dm 755 -t $(FLATPAK_DEST)/lib build/libzypak-preload-host.so
+	install -Dm 755 -t $(FLATPAK_DEST)/lib build/libzypak-preload-host-mimic-strategy.so
 	install -Dm 755 -t $(FLATPAK_DEST)/lib build/libzypak-preload-host-spawn-strategy.so
+	install -Dm 755 -t $(FLATPAK_DEST)/lib build/libzypak-preload-host-spawn-strategy-close.so
 	install -Dm 755 -t $(FLATPAK_DEST)/lib build/libzypak-preload-child.so
 	install -Dm 755 -t $(FLATPAK_DEST)/lib build/libzypak-preload-child-mimic-strategy.so
 	install -Dm 755 -t $(FLATPAK_DEST)/lib build/libzypak-preload-child-spawn-strategy.so

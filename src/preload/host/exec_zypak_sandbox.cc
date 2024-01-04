@@ -31,7 +31,7 @@ std::optional<cstring_view> GetTypeArg(char* const* argv) {
 
   for (; *argv != nullptr; argv++) {
     cstring_view arg = *argv;
-    if (StartsWith(arg, kTypeArgPrefix)) {
+    if (arg.starts_with(kTypeArgPrefix)) {
       arg.remove_prefix(kTypeArgPrefix.size());
       return arg;
     }
@@ -49,8 +49,6 @@ DECLARE_OVERRIDE(int, execvp, const char* file, char* const* argv) {
     errno = EINVAL;
     return -1;
   }
-
-  Env::Clear("LD_PRELOAD");
 
   if (file == SandboxPath::instance()->sandbox_path()) {
     file = "zypak-sandbox";

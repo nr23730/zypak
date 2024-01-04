@@ -47,6 +47,7 @@ class Env {
 
   // Used for the WebEx quirk, to signify to zypak-helper that this was a "trampolined" invocation.
   static constexpr cstring_view kZypakWasTrampolined = "ZYPAK_INTERNAL_WAS_TRAMPOLINED";
+  static constexpr cstring_view kZypakSettingCefLibraryPath = "ZYPAK_CEF_LIBRARY_PATH";
 };
 
 }  // namespace zypak

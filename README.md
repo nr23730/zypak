@@ -9,7 +9,7 @@ Flatpaks on Flathub.
 
 This requires your Flatpak to be using:
 
-- `org.freedesktop.Platform` / `Sdk` version `19.08` or later.
+- `org.freedesktop.Platform` / `Sdk` version `21.08` or later.
 - `org.electronjs.Electron2.BaseApp` as your base app. Recent releases include Zypak
   built-in.
 
@@ -20,19 +20,18 @@ your application is fully installed; simply running `zypak-wrapper` from a
 
 ## Re-exec behavior
 
-By default, Zypak will detect when the app is re-exec'ing itself and attempt to
-spawn the latest version, in order for `chrome://restart` to function. This can
-be disabled by setting `ZYPAK_SPAWN_LATEST_ON_REEXEC=0`. **This will be the
-default in the future once existing browsers are migrated,** because it matches
-more closely with what Electron would expect.
+`ZYPAK_SPAWN_LATEST_ON_REEXEC=1` will have Zypak detect when the app is re-
+exec'ing itself and attempt to spawn the latest version, in order for
+`chrome://restart` to function. (Previous versions of Zypak defaulted to this
+being enabled.)
 
 ### Usage with a wrapper script
 
-If `ZYPAK_SPAWN_LATEST_ON_REEXEC=1` (the current default) is active, and Zypak
-was invoked by some sort of wrapper script, make sure you set `CHROME_WRAPPER=`
-to the path of said script. Otherwise, if the application attempts to re-exec
-itself (i.e. `chrome://restart`), it won't be using the wrapper on re-exec,
-leading to potentially unexpected behavior.
+If `ZYPAK_SPAWN_LATEST_ON_REEXEC=1` is set, and Zypak was invoked by some sort
+of wrapper script, make sure you set `CHROME_WRAPPER=` to the path of said
+script. Otherwise, if the application attempts to re-exec itself (i.e.
+`chrome://restart`), it won't be using the wrapper on re-exec, leading to
+potentially unexpected behavior.
 
 ## Widevine support
 
@@ -82,6 +81,11 @@ Zypak needs to override `LD_PRELOAD` in order to inject its redirection librarie
 application process. If you need to add your own libraries to `LD_PRELOAD`, place them in
 `ZYPAK_LD_PRELOAD`, which will result in Zypak adding them to the `LD_PRELOAD` list, in addition to
 its own required libraries.
+
+## CEF support
+
+If the application uses CEF, set `ZYPAK_CEF_LIBRARY_PATH` to the absolute path to the `libcef.so`
+library.
 
 ## Using a different version
 
